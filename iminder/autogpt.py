@@ -10,7 +10,8 @@ from langchain.experimental.autonomous_agents.autogpt.output_parser import (
 from langchain.tools.human.tool import HumanInputRun
 
 from iminder.prompt import AutoGPTPrompt
-from iminder.utils import get_agent_tools, get_vectorstore
+from iminder.utils import get_vectorstore
+from iminder.tools import get_agent_tools
 
 
 class AutoGPTAgent():
@@ -28,7 +29,7 @@ class AutoGPTAgent():
         self.model = model
 
     def _get_autogpt_agent(
-        self, llm: ChatOpenAI, verbose: bool, human_in_the_loop: bool = False
+        self, llm: ChatOpenAI, verbose: bool, human_in_the_loop: bool = True
     ) -> AutoGPT:
         vectorstore = get_vectorstore()
         tools = get_agent_tools()
@@ -40,6 +41,7 @@ class AutoGPTAgent():
             tools=tools,
             input_variables=["memory", "messages", "goals", "user_input"],
             token_counter=llm.get_num_tokens,
+            history_plan=''
         )
         human_feedback_tool = HumanInputRun() if human_in_the_loop else None
         chain = LLMChain(llm=llm, prompt=prompt)

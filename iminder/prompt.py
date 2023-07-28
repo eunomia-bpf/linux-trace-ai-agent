@@ -1,3 +1,4 @@
+import json
 import time
 from typing import Any, Callable, List
 
@@ -9,7 +10,7 @@ from langchain.schema import BaseMessage, HumanMessage, SystemMessage
 from langchain.tools.base import BaseTool
 from langchain.vectorstores.base import VectorStoreRetriever
 from pydantic import BaseModel
-
+from langchain.schema.messages import AIMessage
 
 class AutoGPTPrompt(BaseChatPromptTemplate, BaseModel):
     ai_name: str
@@ -17,8 +18,9 @@ class AutoGPTPrompt(BaseChatPromptTemplate, BaseModel):
     tools: List[BaseTool]
     token_counter: Callable[[str], int]
     send_token_limit: int = 4196
+    history_plan: str
 
-    def construct_full_prompt(self, goals: List[str]) -> str:
+    def construct_full_prompt(self, **kwargs: Any) -> str:
         prompt_start = (
             "Your decisions must always be made independently "
             "without seeking user assistance.\n"
@@ -27,12 +29,33 @@ class AutoGPTPrompt(BaseChatPromptTemplate, BaseModel):
             "If you have completed all your tasks, make sure to "
             'use the "finish" command.'
         )
+        goals = kwargs["goals"]
         # Construct full prompt
         full_prompt = (
             f"You are {self.ai_name}, {self.ai_role}\n{prompt_start}\n\nGOALS:\n\n"
         )
         for i, goal in enumerate(goals):
             full_prompt += f"{i+1}. {goal}\n"
+        
+        messages = kwargs["messages"]
+        plans = ''
+        for message in messages[-2:]:
+            if isinstance(message, AIMessage):
+                AI_response = json.loads(message.content)
+                plans += AI_response['thoughts']['plan']
+            if isinstance(message, SystemMessage):
+                plan_result = message.content if len(message.content) > 27 else "Command sample returned: Successfully"
+        if plans:
+            plans = plans.split('\n')
+            self.history_plan += plans[0]
+            self.history_plan += "\t"
+            self.history_plan += plan_result
+            self.history_plan += "\n"
+            full_prompt += "\nCompleted plans:\n"
+            full_prompt += self.history_plan
+            if len(plans) >=2:
+                full_prompt += "\n\nFuture Plans:\n"
+                full_prompt += '\n'.join(plans[1:])
 
         full_prompt += f"\n\n{get_prompt(self.tools)}"
         return full_prompt
@@ -43,7 +66,7 @@ class AutoGPTPrompt(BaseChatPromptTemplate, BaseModel):
 
     def _format_misc_messages(self, **kwargs: Any) -> List[BaseMessage]:
         """Format misc requried messages, such as time and date."""
-        base_prompt = SystemMessage(content=self.construct_full_prompt(kwargs["goals"]))
+        base_prompt = SystemMessage(content=self.construct_full_prompt(**kwargs))
         time_prompt = SystemMessage(
             content=f"The current time and date is {time.strftime('%c')}"
         )
@@ -106,6 +129,7 @@ class AutoGPTPrompt(BaseChatPromptTemplate, BaseModel):
         messages = []
         # Format misc messages
         input_message = HumanMessage(content=kwargs["user_input"])
+        # todo：获取plan，记录plan执行历史
         misc_messages = self._format_misc_messages(**kwargs)
         used_tokens = self._calculate_tokens(misc_messages + [input_message])
         messages += misc_messages
@@ -120,9 +144,9 @@ class AutoGPTPrompt(BaseChatPromptTemplate, BaseModel):
             messages += memory_messages
             used_tokens += self._calculate_tokens(memory_messages)
             # HACK: This is a hack since GPT-3 doesn't seem to like previous actions
-            # token_limit = self.send_token_limit - used_tokens
-            # prev_actions = self._format_prev_actions(token_limit, **kwargs)
-            # messages += prev_actions
+            token_limit = self.send_token_limit - used_tokens
+            prev_actions = self._format_prev_actions(token_limit, **kwargs)
+            messages += prev_actions
         messages += last_action
         messages.append(input_message)
         return messages
