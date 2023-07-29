@@ -34,11 +34,12 @@ class AutoGPTPrompt(BaseChatPromptTemplate, BaseModel):
         full_prompt = (
             f"You are {self.ai_name}, {self.ai_role}\n{prompt_start}\n\nGOALS:\n\n"
         )
-        for i, goal in enumerate(goals):
-            full_prompt += f"{i+1}. {goal}\n"
-        
+        for _, goal in enumerate(goals):
+            full_prompt += f"- {goal}\n"
+
         messages = kwargs["messages"]
         plans = ''
+        # Obtain the command used by the GPT and the result after the command is executed locally.
         for message in messages[-2:]:
             if isinstance(message, AIMessage):
                 AI_response = json.loads(message.content)
@@ -47,12 +48,9 @@ class AutoGPTPrompt(BaseChatPromptTemplate, BaseModel):
                 plan_result = message.content if len(message.content) > 27 else "Command sample returned: Successfully"
         if plans:
             plans = plans.split('\n')
-            self.history_plan += plans[0]
-            self.history_plan += "\t"
-            self.history_plan += plan_result
-            self.history_plan += "\n"
-            full_prompt += "\nCompleted plans:\n"
-            full_prompt += self.history_plan
+            # new_history_plan = plans[0] +'\t' + plan_result + '\n'
+            self.history_plan += f"{plans[0]}\t{plan_result}\n"
+            full_prompt += f"\nCompleted plans:\n{self.history_plan}"
             if len(plans) >=2:
                 full_prompt += "\n\nFuture Plans:\n"
                 full_prompt += '\n'.join(plans[1:])
@@ -129,7 +127,6 @@ class AutoGPTPrompt(BaseChatPromptTemplate, BaseModel):
         messages = []
         # Format misc messages
         input_message = HumanMessage(content=kwargs["user_input"])
-        # todo：获取plan，记录plan执行历史
         misc_messages = self._format_misc_messages(**kwargs)
         used_tokens = self._calculate_tokens(misc_messages + [input_message])
         messages += misc_messages
@@ -144,9 +141,9 @@ class AutoGPTPrompt(BaseChatPromptTemplate, BaseModel):
             messages += memory_messages
             used_tokens += self._calculate_tokens(memory_messages)
             # HACK: This is a hack since GPT-3 doesn't seem to like previous actions
-            token_limit = self.send_token_limit - used_tokens
-            prev_actions = self._format_prev_actions(token_limit, **kwargs)
-            messages += prev_actions
+            # token_limit = self.send_token_limit - used_tokens
+            # prev_actions = self._format_prev_actions(token_limit, **kwargs)
+            # messages += prev_actions
         messages += last_action
         messages.append(input_message)
         return messages

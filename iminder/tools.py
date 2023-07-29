@@ -34,7 +34,7 @@ def get_agent_tools() -> List[BaseTool]:
         Tool(
             name="analyse_process",
             func=analyse_process,
-            description="Analyzes the resource usage of a process based on the provided statistical information, then save the result to specify file.",
+            description="Analyzes the resource usage of a process based on the provided statistical information.",
             # args_schema=AnalyseInput,
         ),
         shell_tool,
@@ -113,5 +113,6 @@ def analyse_process(arg: str) -> str:
 
 class AnalyseInput(BaseModel):
     arg: str = Field(
+        ...,
         description="Statistical data of process resource usage.",
     ),
