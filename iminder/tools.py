@@ -35,7 +35,7 @@ def get_agent_tools() -> List[BaseTool]:
             name="analyse_process",
             func=analyse_process,
             description="Analyzes the resource usage of a process based on the provided statistical information.",
-            # args_schema=AnalyseInput,
+            args_schema=AnalyseInput,
         ),
         shell_tool,
         DuckDuckGoSearchRun()
@@ -115,4 +115,4 @@ class AnalyseInput(BaseModel):
     arg: str = Field(
         ...,
         description="Statistical data of process resource usage.",
-    ),
+    )
